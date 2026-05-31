@@ -259,6 +259,34 @@ fastfloat_really_inline FASTFLOAT_CONSTEXPR20 void
 loop_parse_if_eight_digits(char const *&p, char const *const pend,
                            uint64_t &i) {
   // optimizes better than parse_if_eight_digits_unrolled() for UC = char.
+#if defined(__aarch64__) && defined(__clang__)
+  // 2x unroll (ported from ffc EXP-044): on Clang/AArch64, consuming 16 digits
+  // per iteration eliminates the loop back-edge for typical fractions (e.g. the
+  // 17-digit mantissas of uniform [0,1] inputs) and keeps the SWAR constants
+  // resident. GCC auto-unrolls the simple loop well, so it keeps the original.
+  while ((pend - p) >= 16) {
+    uint64_t val1 = read8_to_u64(p);
+    if (!is_made_of_eight_digits_fast(val1)) {
+      break;
+    }
+    uint64_t val2 = read8_to_u64(p + 8);
+    if (!is_made_of_eight_digits_fast(val2)) {
+      i = i * 100000000 + parse_eight_digits_unrolled(val1);
+      p += 8;
+      return; // val2 is not a full digit block; caller's byte loop handles rest
+    }
+    i = (i * 100000000 + parse_eight_digits_unrolled(val1)) * 100000000 +
+        parse_eight_digits_unrolled(val2); // in rare cases overflows, that's ok
+    p += 16;
+  }
+  if ((pend - p) >= 8) {
+    uint64_t val = read8_to_u64(p);
+    if (is_made_of_eight_digits_fast(val)) {
+      i = i * 100000000 + parse_eight_digits_unrolled(val);
+      p += 8;
+    }
+  }
+#else
   while ((std::distance(p, pend) >= 8) &&
          is_made_of_eight_digits_fast(read8_to_u64(p))) {
     i = i * 100000000 +
@@ -266,6 +294,7 @@ loop_parse_if_eight_digits(char const *&p, char const *const pend,
             p)); // in rare cases, this will overflow, but that's ok
     p += 8;
   }
+#endif
 }
 
 enum class parse_error {
