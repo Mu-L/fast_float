@@ -296,12 +296,13 @@ loop_parse_if_eight_digits(char const *&p, char const *const pend,
   }
   // 4-digit SWAR follow-up (ported from ffc EXP-001): consume a remaining 4-7
   // digit run in one step rather than byte-by-byte. GCC path only — on Clang
-  // the follow-up's presence bloated the 2x-unroll codegen and regressed random.
+  // the follow-up's presence bloated the 2x-unroll codegen and regressed
+  // random.
   if ((pend - p) >= 4) {
     uint32_t const val4 = read4_to_u32(p);
     if (is_made_of_four_digits_fast(val4)) {
-      i = i * 10000 +
-          parse_four_digits_unrolled(val4); // in rare cases overflows, that's ok
+      i = i * 10000 + parse_four_digits_unrolled(
+                          val4); // in rare cases overflows, that's ok
       p += 4;
     }
   }
